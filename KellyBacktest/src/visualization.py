@@ -240,6 +240,37 @@ def plot_portfolio_weights(weights_df: pd.DataFrame) -> go.Figure:
     return fig
 
 
+def plot_nav_comparison_multi(nav_dict: dict[str, pd.Series], title: str = "자본증가 곡선 비교") -> go.Figure:
+    fig = go.Figure()
+    color_map = {
+        "Buy & Hold": "#ff7f0e",
+        "Cash (f=0)": "#7f7f7f",
+    }
+    color_cycle = ["#1f77b4", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#bcbd22", "#17becf"]
+
+    for i, (label, nav) in enumerate(nav_dict.items()):
+        color = color_map.get(label, color_cycle[i % len(color_cycle)])
+        fig.add_trace(
+            go.Scatter(
+                x=nav.index,
+                y=nav.values,
+                mode="lines",
+                name=label,
+                line=dict(color=color, width=2),
+            )
+        )
+    fig.update_layout(
+        title=title,
+        xaxis_title="날짜",
+        yaxis_title="포트폴리오 가치",
+        hovermode="x unified",
+        template="plotly_white",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin=dict(l=40, r=40, t=60, b=40),
+    )
+    return fig
+
+
 def plot_returns_histogram(nav: pd.Series, title: str = "수익률 분포") -> go.Figure:
     """일간 수익률 히스토그램"""
     returns = nav.pct_change().dropna() * 100

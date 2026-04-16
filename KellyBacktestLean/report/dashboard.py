@@ -12,11 +12,13 @@ from parse_lean_results import (
     compute_metrics,
     kelly_curve_data,
     load_results,
+    simulate_nav_for_fractions,
     summarize_trades,
 )
 from report import (
     fig_drawdown,
     fig_kelly_curve,
+    fig_nav_comparison_multi,
     fig_nav_vs_buyhold,
     fig_position_weight,
     fig_trade_returns_histogram,
@@ -382,6 +384,37 @@ with tab_kelly:
                     fig_kelly_curve(f_vals, exp_log, f_star=kelly_metrics["f_star_numerical"]),
                     use_container_width=True,
                 )
+
+        st.divider()
+        st.subheader("자본증가 곡선 비교")
+        config = data.get("config", {})
+        direction = config.get("direction", "long")
+        initial_cash = float(config.get("initial_cash", 1_000_000))
+        f_star = kelly_metrics["f_star_numerical"] if kelly_metrics["valid"] else 0.0
+        fractions = [0.0]
+        if f_star > 0:
+            fractions += [f_star * 0.5, f_star, f_star * 1.4]
+        else:
+            fractions += [0.25, 0.5, 1.0]
+        price_history = data.get("price_history", [])
+        nav_dict = simulate_nav_for_fractions(trade_log, price_history, initial_cash, direction, fractions)
+        nav_history = data.get("nav_history", [])
+        if nav_history:
+            nav_df = pd.DataFrame(nav_history)
+            nav_df["date"] = pd.to_datetime(nav_df["date"])
+            nav_df = nav_df.set_index("date").sort_index()
+            if "buyhold" in nav_df.columns:
+                nav_dict["Buy & Hold"] = nav_df["buyhold"]
+            elif price_history:
+                price_df = pd.DataFrame(price_history)
+                price_df["date"] = pd.to_datetime(price_df["date"])
+                price_df = price_df.set_index("date").sort_index()
+                first_price = price_df["price"].iloc[0]
+                if first_price > 0:
+                    shares_bh = initial_cash / first_price
+                    nav_dict["Buy & Hold"] = shares_bh * price_df["price"]
+        if nav_dict:
+            st.plotly_chart(fig_nav_comparison_multi(nav_dict), use_container_width=True)
     else:
         st.warning("거래 수익률이 부족하여 켈리 기준 분석을 수행할 수 없습니다.")
 

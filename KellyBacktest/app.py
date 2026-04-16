@@ -332,6 +332,45 @@ with tab_kelly:
                 "승률·평균손익비 공식과 다를 수 있으며, 분포의 꼬리와 스큐에 민감하게 반응합니다."
             )
 
+        st.divider()
+        st.subheader("자본증가 곡선 비교")
+        if st.button("자본증가 곡선 계산", key="nav_compare_btn"):
+            with st.spinner("여러 f 값으로 백테스팅 중..."):
+                nav_dict: dict[str, pd.Series] = {}
+                backtest_result = st.session_state.get("backtest_result")
+                if backtest_result is not None:
+                    nav_dict["Buy & Hold"] = backtest_result["buyhold"]
+
+                prices = st.session_state["prices"]
+                events = st.session_state["events"]
+                fractions = [0.0]
+                if f_star > 0:
+                    fractions += [f_star * 0.5, f_star, f_star * 1.4]
+                else:
+                    fractions += [0.25, 0.5, 1.0]
+
+                for frac in fractions:
+                    res = backtest_engine.run_strategy(
+                        prices,
+                        events,
+                        kelly_fraction=frac,
+                        holding_period=holding_period,
+                        initial_cash=INITIAL_CASH,
+                        direction=direction,
+                        exit_on_opposite=exit_on_opposite,
+                        allow_renewal=allow_renewal,
+                    )
+                    label = f"{frac*100:.0f}% Kelly" if frac > 0 else "Cash (f=0)"
+                    nav_dict[label] = res["nav"]
+                    # Use buyhold from any run if not already present
+                    if "Buy & Hold" not in nav_dict:
+                        nav_dict["Buy & Hold"] = res["buyhold"]
+
+                st.plotly_chart(
+                    visualization.plot_nav_comparison_multi(nav_dict),
+                    use_container_width=True,
+                )
+
 # --- 탭 2: 백테스트 결과 ---
 with tab2:
     if st.session_state["backtest_result"] is None:

@@ -157,6 +157,84 @@ def compute_kelly_metrics(trade_log: list[dict]) -> dict[str, float]:
     }
 
 
+def simulate_nav_for_fractions(
+    trade_log: list[dict],
+    price_history: list[dict],
+    initial_cash: float,
+    direction: str = "long",
+    fractions: list[float] | None = None,
+) -> dict[str, pd.Series]:
+    """trade_log와 price_history를 기반으로 여러 Kelly fraction의 일별 NAV를 시뮬레이션"""
+    if fractions is None:
+        fractions = [0.0, 0.25, 0.5, 1.0, 1.4]
+    if not price_history or not trade_log:
+        return {}
+
+    price_df = pd.DataFrame(price_history)
+    price_df["date"] = pd.to_datetime(price_df["date"])
+    price_df = price_df.set_index("date").sort_index()
+
+    entries_by_date: dict[str, list[dict]] = {}
+    exits_by_date: dict[str, list[dict]] = {}
+    for trade in trade_log:
+        ed = trade.get("entry_date")
+        ex = trade.get("exit_date")
+        if ed:
+            entries_by_date.setdefault(ed, []).append(trade)
+        if ex:
+            exits_by_date.setdefault(ex, []).append(trade)
+
+    COST_RATE = 0.002  # commission + slippage
+
+    results: dict[str, pd.Series] = {}
+    for f in fractions:
+        cash = float(initial_cash)
+        shares = 0.0
+        navs = []
+        for date in price_df.index:
+            date_str = str(date.date())
+            price = float(price_df.loc[date, "price"])
+
+            # Process exits first
+            if date_str in exits_by_date:
+                for trade in exits_by_date[date_str]:
+                    if shares == 0:
+                        continue
+                    exit_price = float(trade.get("exit_price", 0.0))
+                    if exit_price <= 0:
+                        continue
+                    exit_cost = abs(shares) * exit_price * COST_RATE
+                    if direction == "long":
+                        cash += shares * exit_price - exit_cost
+                    else:
+                        entry_price = float(trade.get("entry_price", 0.0))
+                        cash += abs(shares) * (entry_price - exit_price) - exit_cost
+                    shares = 0.0
+
+            # Process entries
+            if date_str in entries_by_date:
+                for trade in entries_by_date[date_str]:
+                    entry_price = float(trade.get("entry_price", 0.0))
+                    if entry_price <= 0 or cash <= 0:
+                        continue
+                    investment = cash * f
+                    entry_cost = investment * COST_RATE
+                    if direction == "long":
+                        shares = investment / entry_price
+                        cash -= investment + entry_cost
+                    else:
+                        shares = -investment / entry_price
+                        cash += investment - entry_cost
+
+            nav = cash + shares * price
+            navs.append(nav)
+
+        label = f"{f*100:.0f}% Kelly" if f > 0 else "Cash (f=0)"
+        results[label] = pd.Series(navs, index=price_df.index)
+
+    return results
+
+
 def kelly_curve_data(trade_log: list[dict], n_points: int = 200, max_f: float = 5.0):
     """f에 따른 E[log(1+fX)] 데이터를 반환"""
     returns = np.array([t.get("trade_return", 0.0) for t in trade_log])
