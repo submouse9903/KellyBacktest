@@ -1,0 +1,17 @@
+{
+  "environment": "backtesting",
+  "algorithm-type-name": "KellySignalAlgorithm",
+  "algorithm-language": "Python",
+  "algorithm-location": "/Lean/Launcher/bin/Debug/Algorithms/main.py",
+  "data-folder": "/Data",
+  "results-destination-folder": "/Results",
+  "log-handler": "CompositeLogHandler",
+  "messaging-handler": "Messaging",
+  "job-queue-handler": "JobQueue",
+  "api-handler": "Api",
+  "map-file-provider": "LocalDiskMapFileProvider",
+  "factor-file-provider": "LocalDiskFactorFileProvider",
+  "data-provider": "DefaultDataProvider",
+  "history-provider": "SubscriptionDataReaderHistoryProvider",
+  "debug-mode": false
+}

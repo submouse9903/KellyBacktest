@@ -6,9 +6,16 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 
-def plot_nav_comparison(nav_kelly: pd.Series, nav_buyhold: pd.Series) -> go.Figure:
-    """누적 자산 곡선 비교"""
-    fig = go.Figure()
+def plot_nav_comparison(
+    nav_kelly: pd.Series,
+    nav_buyhold: pd.Series,
+    log_scale: bool = False,
+    show_drawdown: bool = True,
+) -> go.Figure:
+    """누적 자산 곡선 비교 (선택적으로 Drawdown 오버레이 및 로그 스케일)"""
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+    # Kelly Strategy
     fig.add_trace(
         go.Scatter(
             x=nav_kelly.index,
@@ -16,8 +23,11 @@ def plot_nav_comparison(nav_kelly: pd.Series, nav_buyhold: pd.Series) -> go.Figu
             mode="lines",
             name="Kelly Strategy",
             line=dict(color="#1f77b4", width=2),
-        )
+        ),
+        secondary_y=False,
     )
+
+    # Buy & Hold
     fig.add_trace(
         go.Scatter(
             x=nav_buyhold.index,
@@ -25,14 +35,76 @@ def plot_nav_comparison(nav_kelly: pd.Series, nav_buyhold: pd.Series) -> go.Figu
             mode="lines",
             name="Buy & Hold",
             line=dict(color="#ff7f0e", width=2, dash="dot"),
-        )
+        ),
+        secondary_y=False,
     )
+
+    # Drawdown overlay
+    if show_drawdown:
+        cummax = nav_kelly.cummax()
+        drawdown = (nav_kelly - cummax) / cummax * 100
+        fig.add_trace(
+            go.Scatter(
+                x=drawdown.index,
+                y=drawdown.values,
+                mode="lines",
+                fill="tozeroy",
+                name="Kelly Drawdown",
+                line=dict(color="#d62728", width=1),
+                fillcolor="rgba(214, 39, 40, 0.15)",
+                hovertemplate="%{y:.1f}%<extra>Drawdown</extra>",
+            ),
+            secondary_y=True,
+        )
+
     fig.update_layout(
-        title="누적 자산 곡선 비교",
+        title="자기자본(NAV) 변화 및 낙폭",
         xaxis_title="날짜",
-        yaxis_title="포트폴리오 가치",
         hovermode="x unified",
         template="plotly_white",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
+
+    fig.update_yaxes(
+        title_text="포트폴리오 가치", secondary_y=False, type="log" if log_scale else "linear"
+    )
+    fig.update_yaxes(title_text="낙폭 (%)", secondary_y=True)
+
+    return fig
+
+
+def plot_equity_growth(nav_kelly: pd.Series, nav_buyhold: pd.Series) -> go.Figure:
+    """초기 자본 대비 성장률(%) 비교"""
+    growth_kelly = (nav_kelly / nav_kelly.iloc[0] - 1) * 100
+    growth_bh = (nav_buyhold / nav_buyhold.iloc[0] - 1) * 100
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=growth_kelly.index,
+            y=growth_kelly.values,
+            mode="lines",
+            name="Kelly Strategy",
+            line=dict(color="#1f77b4", width=2),
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=growth_bh.index,
+            y=growth_bh.values,
+            mode="lines",
+            name="Buy & Hold",
+            line=dict(color="#ff7f0e", width=2, dash="dot"),
+        )
+    )
+    fig.add_hline(y=0, line_dash="dot", line_color="gray")
+    fig.update_layout(
+        title="초기 자본 대비 수익률 (%)",
+        xaxis_title="날짜",
+        yaxis_title="수익률 (%)",
+        hovermode="x unified",
+        template="plotly_white",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
     return fig
 

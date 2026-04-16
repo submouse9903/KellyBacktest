@@ -109,6 +109,24 @@ def bollinger_signal(prices: pd.Series, period: int = 20, std: float = 2.0) -> p
     return signal
 
 
+def macd_signal(prices: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> pd.Series:
+    """MACD 상태
+    
+    +1: MACD 라인이 시그널 라인 위에 있는 구간
+    -1: MACD 라인이 시그널 라인 아래에 있는 구간
+     0: 그 외
+    """
+    ema_fast = prices.ewm(span=fast, adjust=False).mean()
+    ema_slow = prices.ewm(span=slow, adjust=False).mean()
+    macd_line = ema_fast - ema_slow
+    signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+    
+    state = pd.Series(0, index=prices.index, dtype=int)
+    state[macd_line > signal_line] = 1
+    state[macd_line < signal_line] = -1
+    return state
+
+
 def get_signal(name: str, prices: pd.Series, **kwargs) -> pd.Series:
     """문자열 이름으로 신호(상태) 함수 호출"""
     mapping = {
@@ -116,6 +134,7 @@ def get_signal(name: str, prices: pd.Series, **kwargs) -> pd.Series:
         "rsi": rsi_signal,
         "momentum_breakout": momentum_breakout,
         "bollinger": bollinger_signal,
+        "macd": macd_signal,
     }
     fn = mapping.get(name)
     if fn is None:

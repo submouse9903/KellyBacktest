@@ -270,7 +270,9 @@ with tab1:
                 oos_stats = st.session_state["oos_stats"]
                 st.metric("OOS 켈리 비중", f"{oos_stats['f_star_adjusted']*100:.1f}%")
             else:
-                trade_returns_for_pf = st.session_state.get("trade_returns") or st.session_state.get("oos_returns")
+                trade_returns_for_pf = st.session_state.get("trade_returns")
+                if trade_returns_for_pf is None:
+                    trade_returns_for_pf = st.session_state.get("oos_returns")
                 if trade_returns_for_pf is not None and len(trade_returns_for_pf) > 0:
                     pf = metrics.profit_factor(trade_returns_for_pf)
                     st.metric("Profit Factor", f"{pf:.3f}")
@@ -305,22 +307,32 @@ with tab2:
         trade_log = result["trade_log"]
         position = result["position"]
 
-        col1, col2 = st.columns(2)
+        # 자기자본 핵심 지표
+        peak = nav.cummax().iloc[-1]
+        trough = nav.min()
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric(
-                label="Kelly 최종 자본",
-                value=f"{nav.iloc[-1]:,.0f} 원",
-                delta=f"{metrics.total_return(nav)*100:.2f}%",
-            )
+            st.metric("최종 자본", f"{nav.iloc[-1]:,.0f} 원", delta=f"{metrics.total_return(nav)*100:.2f}%")
         with col2:
-            st.metric(
-                label="Buy & Hold 최종 자본",
-                value=f"{buyhold.iloc[-1]:,.0f} 원",
-                delta=f"{metrics.total_return(buyhold)*100:.2f}%",
-            )
+            st.metric("최고 자본 (Peak)", f"{peak:,.0f} 원")
+        with col3:
+            st.metric("최저 자본 (Trough)", f"{trough:,.0f} 원")
+        with col4:
+            st.metric("MDD", f"{metrics.max_drawdown(nav)*100:.2f}%")
+
+        st.divider()
+
+        # NAV 차트 컨트롤
+        nav_log_scale = st.toggle("로그 스케일", value=False, key="nav_log")
+        nav_show_dd = st.toggle("Drawdown 오버레이 표시", value=True, key="nav_dd")
 
         st.plotly_chart(
-            visualization.plot_nav_comparison(nav, buyhold),
+            visualization.plot_nav_comparison(nav, buyhold, log_scale=nav_log_scale, show_drawdown=nav_show_dd),
+            use_container_width=True,
+        )
+
+        st.plotly_chart(
+            visualization.plot_equity_growth(nav, buyhold),
             use_container_width=True,
         )
 
@@ -348,7 +360,6 @@ with tab3:
         result = st.session_state["backtest_result"]
         nav = result["nav"]
         buyhold = result["buyhold"]
-        trade_returns_for_pf = st.session_state.get("trade_returns") or st.session_state.get("oos_returns")
 
         col1, col2 = st.columns(2)
         with col1:
@@ -357,8 +368,11 @@ with tab3:
             comparison = pd.merge(report_nav, report_bh, on="지표")
             st.dataframe(comparison, use_container_width=True)
         with col2:
-            if trade_returns_for_pf is not None and len(trade_returns_for_pf) > 0:
-                report_trades = metrics.generate_trade_report(trade_returns_for_pf, "Trades")
+            tr_pf = st.session_state.get("trade_returns")
+            if tr_pf is None:
+                tr_pf = st.session_state.get("oos_returns")
+            if tr_pf is not None and len(tr_pf) > 0:
+                report_trades = metrics.generate_trade_report(tr_pf, "Trades")
                 st.dataframe(report_trades, use_container_width=True)
 
         st.plotly_chart(

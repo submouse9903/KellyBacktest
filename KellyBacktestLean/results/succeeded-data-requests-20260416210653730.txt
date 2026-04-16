@@ -1,0 +1,1 @@
+/equity/usa/daily/005930.csv

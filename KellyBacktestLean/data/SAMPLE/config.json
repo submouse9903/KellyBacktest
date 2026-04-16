@@ -1,0 +1,7 @@
+{
+  "ticker": "SAMPLE",
+  "data_path": "C:/Users/pdj99/OneDrive/\ubc14\ud0d5 \ud654\uba74/\ud050\ub798\ud504\ud2b8 \ud314\ub85c\uc5c5/KellyBacktestLean/data/SAMPLE/SAMPLE.csv",
+  "initial_cash": 1000000,
+  "start_date": "2020-01-01",
+  "end_date": "2099-12-31"
+}

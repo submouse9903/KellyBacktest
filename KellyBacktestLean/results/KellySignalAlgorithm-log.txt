@@ -1,0 +1,4 @@
+Launching analysis for KellySignalAlgorithm with LEAN Engine v2.5.0.0
+2020-02-11 06:30:00 Warning: Due to brokerage limitations, orders will be rounded to the nearest lot size of 1
+2024-12-30 06:30:00 Results saved to /Results/kelly_results.json
+Algorithm Id:(KellySignalAlgorithm) completed in 1.35 seconds at 1k data points per second. Processing total of 1,232 data points.
