@@ -1,0 +1,1 @@
+cs229.stanford.edu/proj2009/KingVandrotWeng.pdfSVM의 피쳐의 갯수가 생각보다 크리티컬한점이 신기하네요...  투표는 표시되지 않습니다.

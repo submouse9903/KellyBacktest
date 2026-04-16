@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Sensitive auth data
+naver-cookies.json
+
+# Output & test directories
+output*/
+test*/
+*.png
+
+# OS files
+.DS_Store
+Thumbs.db

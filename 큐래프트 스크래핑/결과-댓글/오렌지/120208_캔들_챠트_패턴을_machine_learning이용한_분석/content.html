@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>캔들 챠트 패턴을 machine learning이용한 분석</title>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.8; }
+    img { max-width: 100% !important; width: 100% !important; height: auto !important; display: block; margin: 8px 0; }
+  </style>
+</head>
+<body>
+  <h1>캔들 챠트 패턴을 machine learning이용한 분석</h1>
+  <p style="color:#888; font-size:0.9em;">작성자: 오렌지 | 메뉴: 자유로운 글 | 120208 · <a href="https://cafe.naver.com/volanalysis/838">https://cafe.naver.com/volanalysis/838</a></p>
+  <hr>
+  <!----><!----><div data-v-bfe32ea0="" data-v-e0f26398=""><div data-v-e0f26398="" class="article_content_se" data-v-bfe32ea0=""><div>저도 비슷한 고민으로 SVM을 이용한 적이 있었습니다.</div><div><br></div><div>여러 지표들을 짬뽕시켜서 SVM에 넣어보면 어떠한 결과가 나올까 궁금했기 때문이죠 ^^</div><div><br></div><div>어떤 면에서는 좀 신봉한면도 있지만... 귀찮기도 했고...</div><div><br></div><div>아무튼 오래 전에 해봐서 기억이 가물 가물 한데...</div><div><br></div><div>기본적 원리는 여러 값들을 트레이닝하고 이를 predict하였을 때에 분포된 값을 하이퍼플레인으로 분리하는 것인데...</div><div><br></div><div>여기에서 문제가 생깁니다.&nbsp;</div><div><br></div><div>우선 문제는 트레이닝하기 위한 지표로 어떠한 것을 입력할 것인가? 입니다...</div><div>(두번째는 하이퍼플레인이 정확하게 동작하기 위한 커널링 방법이었던 거 같은데 기억이 가물 가물 해서...)</div><div><br></div><div>트레이닝하기 위한 지표의 종류가 많으면 많아질수록...</div><div><br></div><div>해당 지표와 부합되는 확률을 찾을 가능성은 높아지죠.</div><div><br></div><div>예를 들자면 100개의 지표가 있다면 조합할 수 있는 양으로만 봐도... 거의 유일값에 가까울 정도이니까요...</div><div><br></div><div>그렇다고 지표를 적게하게 된다면 상호간에 겹치는 부분이 많을 것입니다. 똑같은 조건의 지표에서도...</div><div><br></div><div>상승 확률과 하락 확률이 겹칠테니까요...</div><div><br></div><div>그러니 별도의 확률 DB를 가지고 있어야 하는 게 되는 셈이죠..</div><div><br></div><div>그런데... 무엇보다 문제는... 이놈을 트레이닝 시키면... 과거에 트레이닝 시킨 값과 유사하게 넣었을 경우...</div><div><br></div><div>비슷하게라도 맞춥니다.</div><div><br></div><div>문제는 전진 분석이 이것들이 잘 맞아 떨어지느냐....</div><div><br></div><div>여기에서 문제가 생깁니다.</div><div><br></div><div>다행히 제가 예전에 시뮬레이션 하였던 그래프가 있더군요...</div><div><br></div><div>Figure A는 트레이닝 시킨 이후에 백 테스팅 한 것이고, Figure B는 포워드 테스팅한 것입니다.</div><div><br></div><div>어떻게 나왔는지는 기억이 안나지만... -..- 워낙 오래전 일이라...</div><div><br></div><div>어찌되었든 녹색의 그래프로 보면 특성이 현저하게 저하되는데다가 불안정하기 까지 합니다.</div><div><br></div><div>이를 실제로 매매로직에 부여하게 되면 백퍼 박살나지요...</div><div><br></div><div>그렇기 때문에...</div><div><br></div><div>SVM의 특성을 다시 한번 잘 고민해보셔서 접근하셔야 할 것 같습니다...&nbsp;</div><div>(속도는 무척 빠릅니다... python의 경우 svmlib이 c로 포팅되어 있어서... 파일 덩어리가 커서 좀 그렇지만 -.-;;)</div><div><br></div><div>PS. SVM 관련 논문에는 주가 예측에 대한 정확도가 높다고 되어 있는데... 아마 o.O 특성화하기 위한 방법이 있겠죠? ^^</div><div>아님 페이퍼용 단순 예측이거나 (실제 거래에서 사용되기 어려운...)</div><div><div style="margin:0 -15px;line-height:0;"><img class="fx" src="https://cafeptthumb-phinf.pstatic.net/20120208_77/powerevan_13287097967925Q5Yv_png/02_03_predict%28graph%29_predict_ratio_powerevan.png?type=w740" alt="본문 이미지" style="display: block; max-width: 100% !important; width: 100% !important; height: auto !important;"></div></div><div><div style="margin:0 -15px;line-height:0;"><img class="fx" src="https://cafeptthumb-phinf.pstatic.net/20120208_147/powerevan_1328709797890y1occ_png/02_03_predict%28graph%29_w3_predict_ratio_powerevan.png?type=w740" alt="본문 이미지" style="display: block; max-width: 100% !important; width: 100% !important; height: auto !important;"></div></div></div></div><!----><p data-v-e0f26398="" class="nsm" style="display: none;"><span data-v-e0f26398="" class="ic_atch ic_poll"></span> 투표는 표시되지 않습니다. </p><!----><div data-v-e0f26398="" class="flies_area"><div class="files_tit"><!----></div><ul class="files"></ul></div><!---->
+</body>
+</html>

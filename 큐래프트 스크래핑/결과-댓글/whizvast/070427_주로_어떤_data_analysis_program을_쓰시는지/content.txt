@@ -1,0 +1,1 @@
+저는 현재 quant team에서 일하고 있지만, 일반적으로 생각하는 stat arb는 아닙니다.    자료분석을 할 때 (generating signals) 저는 주로 SAS/R 이렇게 2개를 혼용해서 쓰고 있습니다만... 다른 분들은 어떤 것들을 쓰시는지? 지금 MatLab으로 써볼까도 고려 중인데 R에 비해 활용 할 수 있는 library가 많은지 알고 싶습니다. 혹시 MatLab으로 financial data 분석하신 분 있으시면 좋은 싸이트 좀 가르쳐 주세요 ㅠ.ㅠ   아, 그리고 electronic trading system을 구축하려면 어떻게 해야 하는지 해 본 적이 없어서... 기초부터 알려주시면 고맙겠습니다.     투표는 표시되지 않습니다.
