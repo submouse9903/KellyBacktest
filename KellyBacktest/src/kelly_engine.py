@@ -7,7 +7,8 @@
 
 import numpy as np
 import pandas as pd
-from scipy import linalg
+from scipy import linalg, stats as scipy_stats
+from scipy.optimize import minimize_scalar
 
 
 def _to_returns(prices: pd.Series) -> pd.Series:
@@ -206,6 +207,111 @@ def constrained_portfolio_kelly(
 # ---------------------------------------------------------------------------
 # 베이지안 켈리 (옵션 / 고급)
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Numerical Kelly & Statistics
+# ---------------------------------------------------------------------------
+
+
+def return_stats(returns: pd.Series | np.ndarray) -> dict[str, float]:
+    """거래별 수익률의 핵심 통계량을 계산"""
+    returns = np.asarray(returns)
+    returns = returns[np.isfinite(returns)]
+    if len(returns) == 0:
+        return {"mean": 0.0, "median": 0.0, "std": 0.0, "skewness": 0.0, "kurtosis": 0.0}
+    return {
+        "mean": float(np.mean(returns)),
+        "median": float(np.median(returns)),
+        "std": float(np.std(returns, ddof=1)),
+        "skewness": float(scipy_stats.skew(returns, bias=False)),
+        "kurtosis": float(scipy_stats.kurtosis(returns, bias=False)),
+    }
+
+
+def numerical_kelly(returns: pd.Series | np.ndarray, bounds: tuple[float, float] = (0.0, 10.0)) -> float:
+    """E[log(1 + fX)]를 수치적으로 최적화하여 켈리 비율 f*를 반환
+
+    Args:
+        returns: 거래별 원금대비 수익률 (소수)
+        bounds: f 탐색 범위 (기본 0.0 ~ 10.0)
+
+    Returns:
+        최적 켈리 비율 f*
+    """
+    returns = np.asarray(returns)
+    returns = returns[np.isfinite(returns)]
+    if len(returns) < 2:
+        return 0.0
+
+    min_ret = returns.min()
+    if min_ret < 0:
+        safe_upper = min(bounds[1], 0.999 / abs(min_ret))
+    else:
+        safe_upper = bounds[1]
+
+    if safe_upper <= bounds[0]:
+        return 0.0
+
+    def objective(f):
+        val = 1 + f * returns
+        if np.any(val <= 0):
+            return 1e10
+        return -np.mean(np.log(val))
+
+    result = minimize_scalar(objective, bounds=(bounds[0], safe_upper), method="bounded")
+    return float(result.x)
+
+
+def kelly_curve(
+    returns: pd.Series | np.ndarray, n_points: int = 200, max_f: float = 5.0
+) -> tuple[np.ndarray, np.ndarray]:
+    """f에 따른 E[log(1 + fX)] 곡선 데이터를 생성
+
+    Returns:
+        (f_vals, expected_log_values)
+    """
+    returns = np.asarray(returns)
+    returns = returns[np.isfinite(returns)]
+    if len(returns) < 2:
+        return np.array([]), np.array([])
+
+    min_ret = returns.min()
+    if min_ret < 0:
+        safe_max_f = min(max_f, 0.999 / abs(min_ret))
+    else:
+        safe_max_f = max_f
+
+    f_vals = np.linspace(0, safe_max_f, n_points)
+    exp_log = []
+    for f in f_vals:
+        val = 1 + f * returns
+        if np.any(val <= 0):
+            exp_log.append(np.nan)
+        else:
+            exp_log.append(np.mean(np.log(val)))
+    return f_vals, np.array(exp_log)
+
+
+def normal_approx_kelly(returns: pd.Series | np.ndarray, risk_free: float = 0.0) -> float:
+    """정규분포 가정 하의 켈리 근삿값: (μ - rf) / σ²
+
+    UI 참고용으로만 사용하세요.
+    """
+    returns = np.asarray(returns)
+    returns = returns[np.isfinite(returns)]
+    if len(returns) < 2:
+        return 0.0
+    mu = float(np.mean(returns))
+    sigma2 = float(np.var(returns, ddof=0))
+    if sigma2 == 0:
+        return 0.0
+    return max(0.0, (mu - risk_free) / sigma2)
+
+
+# ---------------------------------------------------------------------------
+# 베이지안 켈리 (옵션 / 고급)
+# ---------------------------------------------------------------------------
+
 
 def bayesian_kelly(
     returns: pd.Series,

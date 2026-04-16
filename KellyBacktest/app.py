@@ -148,7 +148,7 @@ with st.sidebar:
     st.subheader("3. 켈리 설정")
     kelly_type = st.selectbox(
         "켈리 타입",
-        options=["Adjusted Kelly (Full)", "Half Kelly", "Custom Fraction"],
+        options=["Numerical Kelly (Full)", "Half Kelly", "Custom Fraction"],
         index=1,
     )
     custom_fraction = 0.5
@@ -198,9 +198,9 @@ if analyze_clicked:
 
         # 켈리 비율 계산
         if use_oos:
-            f_raw = is_stats["f_star_adjusted"] if is_stats["valid"] else 0.0
+            f_raw = is_stats["f_star_numerical"] if is_stats["valid"] else 0.0
         else:
-            f_raw = st.session_state["stats"]["f_star_adjusted"] if st.session_state["stats"]["valid"] else 0.0
+            f_raw = st.session_state["stats"]["f_star_numerical"] if st.session_state["stats"]["valid"] else 0.0
 
         if kelly_type == "Half Kelly":
             f_star = kelly_engine.fractional_kelly(f_raw, 0.5)
@@ -255,20 +255,24 @@ with tab1:
 
         col5, col6 = st.columns(2)
         with col5:
-            if stats["valid"] and stats["f_star_adjusted"] > 0:
+            if stats["valid"] and stats["f_star_numerical"] > 0:
                 st.metric(
-                    label="Adjusted Kelly (f*)",
-                    value=f"{stats['f_star_adjusted']*100:.1f}%",
-                    delta=f"적용 비중: {f_star*100:.1f}%" if kelly_type != "Adjusted Kelly (Full)" else None,
+                    label="Numerical Kelly (f*)",
+                    value=f"{stats['f_star_numerical']*100:.1f}%",
+                    delta=f"적용 비중: {f_star*100:.1f}%" if kelly_type != "Numerical Kelly (Full)" else None,
                 )
-            elif stats["valid"] and stats["f_star_adjusted"] <= 0:
-                st.error(f"⚠️ 켈리 비중 음수 ({stats['f_star_adjusted']*100:.1f}%). 이 전략은 '하지 마라'입니다.")
+                st.caption(
+                    f"<span style='color:gray'>정규분포 근삿값: {stats['f_star_normal_approx']*100:.1f}% (참고용)</span>",
+                    unsafe_allow_html=True,
+                )
+            elif stats["valid"] and stats["f_star_numerical"] <= 0:
+                st.error(f"⚠️ 켈리 비중 음수 ({stats['f_star_numerical']*100:.1f}%). 이 전략은 '하지 마라'입니다.")
             else:
                 st.warning(f"거래 횟수 부족 ({stats['n_trades']}회). 통계적으로 유의미하지 않습니다.")
         with col6:
             if use_oos and st.session_state["oos_stats"] is not None:
                 oos_stats = st.session_state["oos_stats"]
-                st.metric("OOS 켈리 비중", f"{oos_stats['f_star_adjusted']*100:.1f}%")
+                st.metric("OOS Numerical Kelly", f"{oos_stats['f_star_numerical']*100:.1f}%")
             else:
                 trade_returns_for_pf = st.session_state.get("trade_returns")
                 if trade_returns_for_pf is None:
@@ -290,6 +294,41 @@ with tab1:
                 st.metric("OOS 평균 수익", f"{oos_stats['avg_win']*100:.2f}%")
             with oos_col4:
                 st.metric("OOS 평균 손실", f"{oos_stats['avg_loss']*100:.2f}%")
+
+        st.divider()
+        st.subheader("수익률 통계 요약")
+        rs = stats["return_stats"]
+        rs_col1, rs_col2, rs_col3, rs_col4, rs_col5 = st.columns(5)
+        with rs_col1:
+            st.metric("평균", f"{rs['mean']*100:.2f}%")
+        with rs_col2:
+            st.metric("중앙값", f"{rs['median']*100:.2f}%")
+        with rs_col3:
+            st.metric("표준편차", f"{rs['std']*100:.2f}%")
+        with rs_col4:
+            st.metric("왜도", f"{rs['skewness']:.2f}")
+        with rs_col5:
+            st.metric("첨도", f"{rs['kurtosis']:.2f}")
+
+        st.divider()
+        trade_returns = st.session_state.get("trade_returns") or st.session_state.get("oos_returns")
+        if trade_returns is not None and len(trade_returns) > 0:
+            dist_col, curve_col = st.columns(2)
+            with dist_col:
+                st.plotly_chart(
+                    visualization.plot_trade_returns_distribution(trade_returns, title="거래별 수익률 분포"),
+                    use_container_width=True,
+                )
+            with curve_col:
+                f_vals, exp_log = kelly_engine.kelly_curve(trade_returns)
+                st.plotly_chart(
+                    visualization.plot_kelly_curve(f_vals, exp_log, f_star=stats["f_star_numerical"]),
+                    use_container_width=True,
+                )
+            st.info(
+                "💡 **Numerical Kelly**는 전체 거래 수익률 분포에서 $E[\\log(1+fX)]$를 직접 최적화한 값입니다. "
+                "승률·평균손익비 공식과 다를 수 있으며, 분포의 꼬리와 스큐에 민감하게 반응합니다."
+            )
 
         st.plotly_chart(
             visualization.plot_price_with_signals(prices, state, title=f"{strategy_name} 상태(State) 분포"),
@@ -439,7 +478,7 @@ with tab4:
             st.success(f"{len(grid_result)}개의 조합을 찾았습니다.")
             display_df = grid_result.copy()
             # 포맷팅
-            for col in ["win_rate", "avg_win", "avg_loss", "f_star_adjusted", "f_star"]:
+            for col in ["win_rate", "avg_win", "avg_loss", "f_star_numerical", "f_star_normal_approx", "f_star_adjusted", "f_star"]:
                 if col in display_df.columns:
                     display_df[col] = display_df[col].apply(lambda x: f"{x*100:.2f}%" if col != "win_rate" else f"{x*100:.1f}%")
             st.dataframe(display_df, use_container_width=True)

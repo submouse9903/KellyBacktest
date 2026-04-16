@@ -1,9 +1,11 @@
 """Plotly 기반 시각화 유틸리티"""
 
+import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from scipy.stats import gaussian_kde
 
 
 def plot_nav_comparison(
@@ -249,4 +251,109 @@ def plot_returns_histogram(nav: pd.Series, title: str = "수익률 분포") -> g
         template="plotly_white",
     )
     fig.update_layout(showlegend=False)
+    return fig
+
+
+def plot_trade_returns_distribution(trade_returns: pd.Series | np.ndarray, title: str = "거래별 수익률 분포") -> go.Figure:
+    """Histogram + KDE + mean/median 수직선"""
+    returns = np.asarray(trade_returns)
+    returns = returns[np.isfinite(returns)]
+
+    fig = go.Figure()
+
+    # Histogram
+    fig.add_trace(
+        go.Histogram(
+            x=returns,
+            nbinsx=max(10, min(50, len(returns) // 2)),
+            histnorm="density",
+            name="Histogram",
+            marker_color="#1f77b4",
+            opacity=0.6,
+        )
+    )
+
+    # KDE
+    if len(returns) >= 3:
+        kde = gaussian_kde(returns)
+        x_range = np.linspace(returns.min(), returns.max(), 200)
+        fig.add_trace(
+            go.Scatter(
+                x=x_range,
+                y=kde(x_range),
+                mode="lines",
+                name="KDE",
+                line=dict(color="#ff7f0e", width=2),
+            )
+        )
+
+    # Mean line
+    mean_val = np.mean(returns)
+    fig.add_vline(x=mean_val, line_dash="dash", line_color="#2ca02c",
+                  annotation_text="Mean", annotation_position="top")
+
+    # Median line
+    median_val = np.median(returns)
+    fig.add_vline(x=median_val, line_dash="dot", line_color="#d62728",
+                  annotation_text="Median", annotation_position="top right")
+
+    fig.update_layout(
+        title=title,
+        xaxis_title="Trade Return (소수)",
+        yaxis_title="Density",
+        template="plotly_white",
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin=dict(l=40, r=40, t=60, b=40),
+    )
+    return fig
+
+
+def plot_kelly_curve(
+    f_vals: np.ndarray,
+    exp_log: np.ndarray,
+    f_star: float | None = None,
+    title: str = "켈리 기준 곡선 E[log(1+fX)]",
+) -> go.Figure:
+    """f에 따른 기대 로그수익 곡선"""
+    fig = go.Figure()
+    valid_mask = np.isfinite(exp_log)
+    fig.add_trace(
+        go.Scatter(
+            x=f_vals[valid_mask],
+            y=exp_log[valid_mask],
+            mode="lines",
+            name="E[log(1+fX)]",
+            line=dict(color="#1f77b4", width=2),
+            fill="tozeroy",
+            fillcolor="rgba(31, 119, 180, 0.1)",
+        )
+    )
+    if f_star is not None and np.isfinite(f_star):
+        idx = np.argmin(np.abs(f_vals - f_star))
+        if np.isfinite(exp_log[idx]):
+            fig.add_vline(
+                x=f_star,
+                line_dash="dash",
+                line_color="#d62728",
+                annotation_text=f"f*={f_star:.2f}",
+            )
+            fig.add_trace(
+                go.Scatter(
+                    x=[f_star],
+                    y=[exp_log[idx]],
+                    mode="markers",
+                    marker=dict(color="#d62728", size=12),
+                    name="Optimal f*",
+                    showlegend=False,
+                )
+            )
+    fig.update_layout(
+        title=title,
+        xaxis_title="f (Kelly Ratio)",
+        yaxis_title="E[log(1 + fX)]",
+        template="plotly_white",
+        hovermode="x unified",
+        margin=dict(l=40, r=40, t=60, b=40),
+    )
     return fig

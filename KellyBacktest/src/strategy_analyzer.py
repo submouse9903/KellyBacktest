@@ -103,10 +103,13 @@ def extract_signal_returns(
 
 
 def compute_kelly_params(returns: pd.Series, min_trades: int = 10) -> dict:
-    """거래 수익률로부터 이산 켈리 파라미터 계산
+    """거래 수익률로부터 켈리 파라미터 계산
 
-    주식 거래에서는 평균 손실이 100%가 아니므로 Adjusted Kelly를 기본으로 사용합니다.
+    핵심 지표는 Numerical Kelly (E[log(1+fX)] 최적화)입니다.
+    f_star_adjusted 및 f_star는 레거시 참고용으로 유지됩니다.
     """
+    from src import kelly_engine
+
     returns = returns.dropna()
     n = len(returns)
 
@@ -119,6 +122,15 @@ def compute_kelly_params(returns: pd.Series, min_trades: int = 10) -> dict:
             "avg_loss": 0.0,
             "f_star": 0.0,
             "f_star_adjusted": 0.0,
+            "f_star_numerical": 0.0,
+            "f_star_normal_approx": 0.0,
+            "return_stats": {
+                "mean": 0.0,
+                "median": 0.0,
+                "std": 0.0,
+                "skewness": 0.0,
+                "kurtosis": 0.0,
+            },
             "valid": False,
         }
 
@@ -135,10 +147,15 @@ def compute_kelly_params(returns: pd.Series, min_trades: int = 10) -> dict:
     if b > 0:
         f_star = (b * p - q) / b
 
-    # 현대 수정 켈리 (평균 손실 크기 반영) - 기본 사용
+    # 현대 수정 켈리 (평균 손실 크기 반영) - 참고용
     f_star_adjusted = 0.0
     if b > 0 and avg_loss > 0:
         f_star_adjusted = (b * p - avg_loss * q) / (b * avg_loss)
+
+    # Numerical Kelly (핵심)
+    f_star_numerical = kelly_engine.numerical_kelly(returns.values)
+    f_star_normal_approx = kelly_engine.normal_approx_kelly(returns.values)
+    ret_stats = kelly_engine.return_stats(returns.values)
 
     return {
         "n_trades": n,
@@ -148,6 +165,9 @@ def compute_kelly_params(returns: pd.Series, min_trades: int = 10) -> dict:
         "avg_loss": avg_loss,
         "f_star": f_star,
         "f_star_adjusted": f_star_adjusted,
+        "f_star_numerical": f_star_numerical,
+        "f_star_normal_approx": f_star_normal_approx,
+        "return_stats": ret_stats,
         "valid": True,
     }
 
@@ -201,7 +221,7 @@ def grid_search(
             )
             stats = compute_kelly_params(returns, min_trades=min_trades)
 
-            if stats["valid"] and stats["n_trades"] >= min_trades and stats["f_star_adjusted"] >= min_f_star:
+            if stats["valid"] and stats["n_trades"] >= min_trades and stats["f_star_numerical"] >= min_f_star:
                 row = {
                     "signal": signal_name,
                     "direction": direction,
@@ -211,6 +231,8 @@ def grid_search(
                     "win_rate": stats["win_rate"],
                     "avg_win": stats["avg_win"],
                     "avg_loss": stats["avg_loss"],
+                    "f_star_numerical": stats["f_star_numerical"],
+                    "f_star_normal_approx": stats["f_star_normal_approx"],
                     "f_star_adjusted": stats["f_star_adjusted"],
                     "f_star": stats["f_star"],
                 }
@@ -218,7 +240,7 @@ def grid_search(
 
     df = pd.DataFrame(results)
     if not df.empty:
-        df = df.sort_values("f_star_adjusted", ascending=False).reset_index(drop=True)
+        df = df.sort_values("f_star_numerical", ascending=False).reset_index(drop=True)
     return df
 
 
@@ -259,7 +281,7 @@ def analyze_with_oos(
         is_prices, is_events, holding_period, direction, exit_on_opposite, allow_renewal
     )
     is_stats = compute_kelly_params(is_returns)
-    f_star = max(0.0, is_stats.get("f_star_adjusted", 0.0))
+    f_star = max(0.0, is_stats.get("f_star_numerical", 0.0))
 
     # OOS에서 동일 f*로 거래 수익률 추출 (백테스트는 별도 엔진에서)
     oos_returns = extract_signal_returns(

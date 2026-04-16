@@ -7,9 +7,16 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from parse_lean_results import compute_metrics, load_results, summarize_trades
+from parse_lean_results import (
+    compute_kelly_metrics,
+    compute_metrics,
+    kelly_curve_data,
+    load_results,
+    summarize_trades,
+)
 from report import (
     fig_drawdown,
+    fig_kelly_curve,
     fig_nav_vs_buyhold,
     fig_position_weight,
     fig_trade_returns_histogram,
@@ -338,6 +345,7 @@ with tab_metrics:
     if nav_history:
         metrics = compute_metrics(nav_history)
         trade_summary = summarize_trades(trade_log)
+        kelly_metrics = compute_kelly_metrics(trade_log)
 
         col1, col2 = st.columns(2)
         with col1:
@@ -372,9 +380,44 @@ with tab_metrics:
             )
             st.dataframe(tdf, use_container_width=True, hide_index=True)
 
+        st.subheader("📊 켈리 기준 분석")
+        if kelly_metrics["valid"]:
+            kcol1, kcol2, kcol3 = st.columns([1, 1, 2])
+            with kcol1:
+                st.metric("Numerical Kelly (f*)", f"{kelly_metrics['f_star_numerical']*100:.1f}%")
+            with kcol2:
+                st.metric("정규분포 근삿값", f"{kelly_metrics['f_star_normal_approx']*100:.1f}%")
+            with kcol3:
+                st.caption("회색 값은 '정규분포 가정 시 근사값'이며, 기본 값은 Numerical 최적화 결과입니다.")
+
+            stat_col1, stat_col2, stat_col3, stat_col4, stat_col5 = st.columns(5)
+            with stat_col1:
+                st.metric("평균", f"{kelly_metrics['mean']*100:.2f}%")
+            with stat_col2:
+                st.metric("중앙값", f"{kelly_metrics['median']*100:.2f}%")
+            with stat_col3:
+                st.metric("표준편차", f"{kelly_metrics['std']*100:.2f}%")
+            with stat_col4:
+                st.metric("왜도", f"{kelly_metrics['skewness']:.2f}")
+            with stat_col5:
+                st.metric("첨도", f"{kelly_metrics['kurtosis']:.2f}")
+
+            st.info(
+                "💡 **Numerical Kelly**는 전체 거래 수익률 분포에서 $E[\\log(1+fX)]$를 직접 최적화한 값입니다. "
+                "승률·평균손익비 공식과 다를 수 있으며, 분포의 꼬리와 스큐에 민감하게 반응합니다."
+            )
+        else:
+            st.warning("거래 수익률이 부족하여 켈리 기준 분석을 수행할 수 없습니다.")
+
         st.plotly_chart(fig_drawdown(nav_history), use_container_width=True)
         if trade_log:
             st.plotly_chart(fig_trade_returns_histogram(trade_log), use_container_width=True)
+            f_vals, exp_log = kelly_curve_data(trade_log)
+            if len(f_vals) > 0 and kelly_metrics["valid"]:
+                st.plotly_chart(
+                    fig_kelly_curve(f_vals, exp_log, f_star=kelly_metrics["f_star_numerical"]),
+                    use_container_width=True,
+                )
     else:
         st.warning("nav_history가 비어 있습니다.")
 

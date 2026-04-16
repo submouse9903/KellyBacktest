@@ -7,6 +7,8 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from scipy import stats as scipy_stats
+from scipy.optimize import minimize_scalar
 
 
 def load_results(path: str) -> dict[str, Any]:
@@ -104,3 +106,76 @@ def summarize_trades(trade_log: list[dict]) -> dict[str, float]:
         "profit_factor": profit_factor,
         "n_trades": len(returns),
     }
+
+
+def compute_kelly_metrics(trade_log: list[dict]) -> dict[str, float]:
+    """Numerical Kelly 및 수익률 통계를 계산"""
+    returns = np.array([t.get("trade_return", 0.0) for t in trade_log])
+    returns = returns[np.isfinite(returns)]
+    n = len(returns)
+
+    if n < 2:
+        return {
+            "f_star_numerical": 0.0,
+            "f_star_normal_approx": 0.0,
+            "mean": 0.0,
+            "median": 0.0,
+            "std": 0.0,
+            "skewness": 0.0,
+            "kurtosis": 0.0,
+            "valid": False,
+        }
+
+    min_ret = returns.min()
+    if min_ret < 0:
+        safe_upper = min(10.0, 0.999 / abs(min_ret))
+    else:
+        safe_upper = 10.0
+
+    def objective(f):
+        val = 1 + f * returns
+        if np.any(val <= 0):
+            return 1e10
+        return -np.mean(np.log(val))
+
+    result = minimize_scalar(objective, bounds=(0.0, safe_upper), method="bounded")
+    f_star_numerical = float(result.x)
+
+    mu = float(np.mean(returns))
+    sigma2 = float(np.var(returns, ddof=0))
+    f_star_normal_approx = max(0.0, mu / sigma2) if sigma2 != 0 else 0.0
+
+    return {
+        "f_star_numerical": f_star_numerical,
+        "f_star_normal_approx": f_star_normal_approx,
+        "mean": mu,
+        "median": float(np.median(returns)),
+        "std": float(np.std(returns, ddof=1)),
+        "skewness": float(scipy_stats.skew(returns, bias=False)),
+        "kurtosis": float(scipy_stats.kurtosis(returns, bias=False)),
+        "valid": True,
+    }
+
+
+def kelly_curve_data(trade_log: list[dict], n_points: int = 200, max_f: float = 5.0):
+    """f에 따른 E[log(1+fX)] 데이터를 반환"""
+    returns = np.array([t.get("trade_return", 0.0) for t in trade_log])
+    returns = returns[np.isfinite(returns)]
+    if len(returns) < 2:
+        return np.array([]), np.array([])
+
+    min_ret = returns.min()
+    if min_ret < 0:
+        safe_max_f = min(max_f, 0.999 / abs(min_ret))
+    else:
+        safe_max_f = max_f
+
+    f_vals = np.linspace(0, safe_max_f, n_points)
+    exp_log = []
+    for f in f_vals:
+        val = 1 + f * returns
+        if np.any(val <= 0):
+            exp_log.append(np.nan)
+        else:
+            exp_log.append(np.mean(np.log(val)))
+    return f_vals, np.array(exp_log)
