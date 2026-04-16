@@ -135,8 +135,8 @@ if not isinstance(data, dict):
 # ---------------------------------------------------------------------------
 # Tabs
 # ---------------------------------------------------------------------------
-tab_strategy, tab_backtest, tab_metrics, tab_grid = st.tabs(
-    ["📈 전략 분석", "📉 백테스트 결과", "📋 성과 지표", "🔍 Grid Search 결과"]
+tab_strategy, tab_backtest, tab_kelly, tab_metrics, tab_grid = st.tabs(
+    ["📈 전략 분석", "📉 백테스트 결과", "🧮 켈리 분석", "📋 성과 지표", "🔍 Grid Search 결과"]
 )
 
 # --- Strategy Analysis tab ---
@@ -337,6 +337,55 @@ with tab_backtest:
         st.warning("nav_history가 비어 있습니다.")
 
 
+# --- Kelly Analysis tab ---
+with tab_kelly:
+    trade_log = data.get("trade_log", [])
+    kelly_metrics = compute_kelly_metrics(trade_log)
+
+    if kelly_metrics["valid"]:
+        st.subheader("📊 Numerical Kelly 분석")
+        kcol1, kcol2, kcol3 = st.columns([1, 1, 2])
+        with kcol1:
+            st.metric("Numerical Kelly (f*)", f"{kelly_metrics['f_star_numerical']*100:.1f}%")
+        with kcol2:
+            st.metric("정규분포 근삿값", f"{kelly_metrics['f_star_normal_approx']*100:.1f}%")
+        with kcol3:
+            st.caption("회색 값은 '정규분포 가정 시 근사값'이며, 기본 값은 Numerical 최적화 결과입니다.")
+
+        st.divider()
+        st.subheader("수익률 통계 요약")
+        stat_col1, stat_col2, stat_col3, stat_col4, stat_col5 = st.columns(5)
+        with stat_col1:
+            st.metric("평균", f"{kelly_metrics['mean']*100:.2f}%")
+        with stat_col2:
+            st.metric("중앙값", f"{kelly_metrics['median']*100:.2f}%")
+        with stat_col3:
+            st.metric("표준편차", f"{kelly_metrics['std']*100:.2f}%")
+        with stat_col4:
+            st.metric("왜도", f"{kelly_metrics['skewness']:.2f}")
+        with stat_col5:
+            st.metric("첨도", f"{kelly_metrics['kurtosis']:.2f}")
+
+        st.info(
+            "💡 **Numerical Kelly**는 전체 거래 수익률 분포에서 $E[\\log(1+fX)]$를 직접 최적화한 값입니다. "
+            "승률·평균손익비 공식과 다를 수 있으며, 분포의 꼬리와 스큐에 민감하게 반응합니다."
+        )
+
+        st.divider()
+        dist_col, curve_col = st.columns(2)
+        with dist_col:
+            st.plotly_chart(fig_trade_returns_histogram(trade_log), use_container_width=True)
+        with curve_col:
+            f_vals, exp_log = kelly_curve_data(trade_log)
+            if len(f_vals) > 0:
+                st.plotly_chart(
+                    fig_kelly_curve(f_vals, exp_log, f_star=kelly_metrics["f_star_numerical"]),
+                    use_container_width=True,
+                )
+    else:
+        st.warning("거래 수익률이 부족하여 켈리 기준 분석을 수행할 수 없습니다.")
+
+
 # --- Performance Metrics tab ---
 with tab_metrics:
     nav_history = data.get("nav_history", [])
@@ -345,7 +394,6 @@ with tab_metrics:
     if nav_history:
         metrics = compute_metrics(nav_history)
         trade_summary = summarize_trades(trade_log)
-        kelly_metrics = compute_kelly_metrics(trade_log)
 
         col1, col2 = st.columns(2)
         with col1:
@@ -380,44 +428,7 @@ with tab_metrics:
             )
             st.dataframe(tdf, use_container_width=True, hide_index=True)
 
-        st.subheader("📊 켈리 기준 분석")
-        if kelly_metrics["valid"]:
-            kcol1, kcol2, kcol3 = st.columns([1, 1, 2])
-            with kcol1:
-                st.metric("Numerical Kelly (f*)", f"{kelly_metrics['f_star_numerical']*100:.1f}%")
-            with kcol2:
-                st.metric("정규분포 근삿값", f"{kelly_metrics['f_star_normal_approx']*100:.1f}%")
-            with kcol3:
-                st.caption("회색 값은 '정규분포 가정 시 근사값'이며, 기본 값은 Numerical 최적화 결과입니다.")
-
-            stat_col1, stat_col2, stat_col3, stat_col4, stat_col5 = st.columns(5)
-            with stat_col1:
-                st.metric("평균", f"{kelly_metrics['mean']*100:.2f}%")
-            with stat_col2:
-                st.metric("중앙값", f"{kelly_metrics['median']*100:.2f}%")
-            with stat_col3:
-                st.metric("표준편차", f"{kelly_metrics['std']*100:.2f}%")
-            with stat_col4:
-                st.metric("왜도", f"{kelly_metrics['skewness']:.2f}")
-            with stat_col5:
-                st.metric("첨도", f"{kelly_metrics['kurtosis']:.2f}")
-
-            st.info(
-                "💡 **Numerical Kelly**는 전체 거래 수익률 분포에서 $E[\\log(1+fX)]$를 직접 최적화한 값입니다. "
-                "승률·평균손익비 공식과 다를 수 있으며, 분포의 꼬리와 스큐에 민감하게 반응합니다."
-            )
-        else:
-            st.warning("거래 수익률이 부족하여 켈리 기준 분석을 수행할 수 없습니다.")
-
         st.plotly_chart(fig_drawdown(nav_history), use_container_width=True)
-        if trade_log:
-            st.plotly_chart(fig_trade_returns_histogram(trade_log), use_container_width=True)
-            f_vals, exp_log = kelly_curve_data(trade_log)
-            if len(f_vals) > 0 and kelly_metrics["valid"]:
-                st.plotly_chart(
-                    fig_kelly_curve(f_vals, exp_log, f_star=kelly_metrics["f_star_numerical"]),
-                    use_container_width=True,
-                )
     else:
         st.warning("nav_history가 비어 있습니다.")
 
@@ -448,20 +459,20 @@ with tab_grid:
             st.write(f"필터 후 **{len(filtered)}개** 조합")
             st.dataframe(filtered, use_container_width=True)
 
-            # Simple bar chart of top N by f_star_adjusted
-            if "f_star_adjusted" in filtered.columns:
-                top_n = filtered.sort_values("f_star_adjusted", ascending=False).head(20)
+            # Simple bar chart of top N by f_star_numerical
+            if "f_star_numerical" in filtered.columns:
+                top_n = filtered.sort_values("f_star_numerical", ascending=False).head(20)
                 fig_bar = go.Figure()
                 fig_bar.add_trace(
                     go.Bar(
                         x=top_n.index.astype(str),
-                        y=top_n["f_star_adjusted"] * 100,
+                        y=top_n["f_star_numerical"] * 100,
                         marker_color="#1f77b4",
                         name="f* (%)",
                     )
                 )
                 fig_bar.update_layout(
-                    title="Top 20 f* (Adjusted Kelly)",
+                    title="Top 20 f* (Numerical Kelly)",
                     xaxis_title="조합 인덱스",
                     yaxis_title="f* (%)",
                     template="plotly_white",

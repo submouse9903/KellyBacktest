@@ -229,7 +229,7 @@ if run_clicked and st.session_state["stats"] is not None:
 # ---------------------------------------------------------------------------
 # 탭 구조
 # ---------------------------------------------------------------------------
-tab1, tab2, tab3, tab4 = st.tabs(["📈 전략 분석", "📉 백테스트 결과", "📋 성과 지표", "🔍 파라미터 최적화"])
+tab1, tab2, tab_kelly, tab3, tab4 = st.tabs(["📈 전략 분석", "📉 백테스트 결과", "🧮 켈리 분석", "📋 성과 지표", "🔍 파라미터 최적화"])
 
 # --- 탭 1: 전략 분석 ---
 with tab1:
@@ -254,46 +254,49 @@ with tab1:
         st.divider()
 
         col5, col6 = st.columns(2)
-        with col5:
+        st.plotly_chart(
+            visualization.plot_price_with_signals(prices, state, title=f"{strategy_name} 상태(State) 분포"),
+            use_container_width=True,
+        )
+
+
+# --- 켈리 분석 탭 ---
+with tab_kelly:
+    if st.session_state["stats"] is None:
+        st.info('"전략 분석하기" 버튼을 클릭하면 켈리 분석 결과가 표시됩니다.')
+    else:
+        stats = st.session_state["stats"]
+        f_star = st.session_state["f_star"]
+        trade_returns = st.session_state.get("trade_returns") or st.session_state.get("oos_returns")
+
+        st.subheader("📊 Numerical Kelly 분석")
+        kcol1, kcol2, kcol3 = st.columns([1, 1, 2])
+        with kcol1:
             if stats["valid"] and stats["f_star_numerical"] > 0:
                 st.metric(
                     label="Numerical Kelly (f*)",
                     value=f"{stats['f_star_numerical']*100:.1f}%",
                     delta=f"적용 비중: {f_star*100:.1f}%" if kelly_type != "Numerical Kelly (Full)" else None,
                 )
-                st.caption(
-                    f"<span style='color:gray'>정규분포 근삿값: {stats['f_star_normal_approx']*100:.1f}% (참고용)</span>",
-                    unsafe_allow_html=True,
-                )
             elif stats["valid"] and stats["f_star_numerical"] <= 0:
                 st.error(f"⚠️ 켈리 비중 음수 ({stats['f_star_numerical']*100:.1f}%). 이 전략은 '하지 마라'입니다.")
             else:
                 st.warning(f"거래 횟수 부족 ({stats['n_trades']}회). 통계적으로 유의미하지 않습니다.")
-        with col6:
-            if use_oos and st.session_state["oos_stats"] is not None:
-                oos_stats = st.session_state["oos_stats"]
-                st.metric("OOS Numerical Kelly", f"{oos_stats['f_star_numerical']*100:.1f}%")
-            else:
-                trade_returns_for_pf = st.session_state.get("trade_returns")
-                if trade_returns_for_pf is None:
-                    trade_returns_for_pf = st.session_state.get("oos_returns")
-                if trade_returns_for_pf is not None and len(trade_returns_for_pf) > 0:
-                    pf = metrics.profit_factor(trade_returns_for_pf)
-                    st.metric("Profit Factor", f"{pf:.3f}")
+        with kcol2:
+            if stats["valid"]:
+                st.metric("정규분포 근삿값", f"{stats['f_star_normal_approx']*100:.1f}%")
+        with kcol3:
+            st.caption("회색 값은 '정규분포 가정 시 근사값'이며, 기본 값은 Numerical 최적화 결과입니다.")
 
         if use_oos and st.session_state["oos_stats"] is not None:
-            oos_stats = st.session_state["oos_stats"]
             st.divider()
-            st.subheader("Out-of-Sample 결과")
-            oos_col1, oos_col2, oos_col3, oos_col4 = st.columns(4)
+            oos_stats = st.session_state["oos_stats"]
+            st.subheader("Out-of-Sample 켈리 결과")
+            oos_col1, oos_col2 = st.columns(2)
             with oos_col1:
-                st.metric("OOS 거래 횟수", f"{oos_stats['n_trades']}회")
+                st.metric("OOS Numerical Kelly", f"{oos_stats['f_star_numerical']*100:.1f}%")
             with oos_col2:
-                st.metric("OOS 승률", f"{oos_stats['win_rate']*100:.1f}%")
-            with oos_col3:
-                st.metric("OOS 평균 수익", f"{oos_stats['avg_win']*100:.2f}%")
-            with oos_col4:
-                st.metric("OOS 평균 손실", f"{oos_stats['avg_loss']*100:.2f}%")
+                st.metric("OOS 정규분포 근삿값", f"{oos_stats['f_star_normal_approx']*100:.1f}%")
 
         st.divider()
         st.subheader("수익률 통계 요약")
@@ -310,9 +313,8 @@ with tab1:
         with rs_col5:
             st.metric("첨도", f"{rs['kurtosis']:.2f}")
 
-        st.divider()
-        trade_returns = st.session_state.get("trade_returns") or st.session_state.get("oos_returns")
         if trade_returns is not None and len(trade_returns) > 0:
+            st.divider()
             dist_col, curve_col = st.columns(2)
             with dist_col:
                 st.plotly_chart(
@@ -329,11 +331,6 @@ with tab1:
                 "💡 **Numerical Kelly**는 전체 거래 수익률 분포에서 $E[\\log(1+fX)]$를 직접 최적화한 값입니다. "
                 "승률·평균손익비 공식과 다를 수 있으며, 분포의 꼬리와 스큐에 민감하게 반응합니다."
             )
-
-        st.plotly_chart(
-            visualization.plot_price_with_signals(prices, state, title=f"{strategy_name} 상태(State) 분포"),
-            use_container_width=True,
-        )
 
 # --- 탭 2: 백테스트 결과 ---
 with tab2:
